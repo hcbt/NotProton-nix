@@ -4,11 +4,6 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-    fleiks = {
-      url = "github:hcbt/fleiks";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # Only used by this repo's checks; consumers bring their own nix-darwin.
     nix-darwin = {
       url = "github:nix-darwin/nix-darwin";
@@ -20,7 +15,6 @@
     {
       self,
       nixpkgs,
-      fleiks,
       nix-darwin,
       ...
     }:
@@ -31,38 +25,38 @@
         config.allowUnfree = true;
       };
 
-      # Evaluation fixture: a stand-in Steam package (nixpkgs has no macOS
-      # Steam client) so the module's eval path can be checked.
+      # Evaluation fixture: stand-in packages (the module requires all
+      # three to be set explicitly) so the eval path can be checked.
+      dummyApp =
+        name: app:
+        pkgs.stdenvNoCC.mkDerivation {
+          inherit name;
+          dontUnpack = true;
+          installPhase = ''
+            mkdir -p $out/Applications/${app}/Contents
+            echo test > $out/Applications/${app}/Contents/Info.plist
+          '';
+        };
+
       testConfig = nix-darwin.lib.darwinSystem {
         inherit system;
         modules = [
           self.darwinModules.default
           {
-            nixpkgs.config.allowUnfree = true; # CrossOver, for the fixture
             system.stateVersion = 6;
             system.primaryUser = "notproton-test";
             notproton = {
               enable = true;
-              steam.package = pkgs.stdenvNoCC.mkDerivation {
-                name = "steam-test";
-                dontUnpack = true;
-                installPhase = ''
-                  mkdir -p $out/Applications/Steam.app/Contents
-                  echo test > $out/Applications/Steam.app/Contents/Info.plist
-                '';
-              };
+              package = dummyApp "notproton-test" "NotProton.app";
+              steam.package = dummyApp "steam-test" "Steam.app";
+              crossover.package = dummyApp "crossover-test" "CrossOver.app";
             };
           }
         ];
       };
     in
     {
-      darwinModules.default = {
-        imports = [ ./modules/notproton.nix ];
-
-        # Provides pkgs.notproton (notproton.package's default).
-        nixpkgs.overlays = [ fleiks.overlays.default ];
-      };
+      darwinModules.default = ./modules/notproton.nix;
 
       checks.${system} = {
         # Forces full module evaluation (options, assertions, activation

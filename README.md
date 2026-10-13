@@ -4,11 +4,19 @@ nix-darwin module managing Steam, CrossOver and [NotProton](https://github.com/N
 
 ## Usage
 
+All three packages are required; the module has no package defaults. [fleiks](https://github.com/hcbt/fleiks) provides the macOS Steam and NotProton packages; nixpkgs provides CrossOver.
+
 ```nix
 {
-  inputs.notproton-nix = {
-    url = "github:hcbt/NotProton-nix";
-    inputs.nixpkgs.follows = "nixpkgs";
+  inputs = {
+    notproton-nix = {
+      url = "github:hcbt/NotProton-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    fleiks = {
+      url = "github:hcbt/fleiks";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   # in your darwin configuration:
@@ -19,7 +27,9 @@ nix-darwin module managing Steam, CrossOver and [NotProton](https://github.com/N
   notproton = {
     enable = true;
     # user = "hcbt"; # defaults to system.primaryUser
-    steam.package = pkgs.steam-mac; # required, see below
+    package = inputs.fleiks.packages.${pkgs.stdenv.hostPlatform.system}.notproton;
+    steam.package = inputs.fleiks.packages.${pkgs.stdenv.hostPlatform.system}.steam;
+    crossover.package = pkgs.crossover;
   };
 }
 ```
@@ -30,11 +40,11 @@ nix-darwin module managing Steam, CrossOver and [NotProton](https://github.com/N
 | --- | --- | --- |
 | `notproton.enable` | `false` | Turn the whole stack on. |
 | `notproton.user` | `system.primaryUser` | Owns the `/Applications` copies and the NotProton state under `~/Library/Application Support/notproton`. |
-| `notproton.package` | `pkgs.notproton` | From [fleiks](https://github.com/hcbt/fleiks); the flake module applies fleiks' overlay for you. |
-| `notproton.steam.package` | **required, no default** | nixpkgs' `pkgs.steam` is the Linux client (`buildFHSEnv`/bubblewrap) — there is no macOS Steam in nixpkgs. Supply a package containing `Applications/Steam.app`. |
-| `notproton.crossover.package` | `pkgs.crossover` | nixpkgs' CrossOver is the macOS app, currently 26.3.0 — the stable build NotProton supports. |
+| `notproton.package` | **required, no default** | Package containing `Applications/NotProton.app`. Not in nixpkgs; fleiks provides it. |
+| `notproton.steam.package` | **required, no default** | Package containing `Applications/Steam.app`. nixpkgs' `pkgs.steam` is the Linux client (`buildFHSEnv`/bubblewrap) — there is no macOS Steam in nixpkgs; fleiks provides one. |
+| `notproton.crossover.package` | **required, no default** | Package containing `Applications/CrossOver.app`. nixpkgs' `pkgs.crossover` is the macOS app, currently 26.3.0 — the stable build NotProton supports. |
 
-Every package must lay its app out as `$out/Applications/<Name>.app` (all of the above do).
+Enabling the module without setting all three fails evaluation with an assertion naming the missing option. Every package must lay its app out as `$out/Applications/<Name>.app` (all of the above do).
 
 ## How it works
 
@@ -48,7 +58,7 @@ NotProton is GUI-only — there is no CLI or headless install. On activation, if
 Still manual, by upstream design:
 
 - Steam → Settings → Compatibility: pick the CrossOver 26.3 (Rosetta) tool as default. Per-game overrides live in each game's Properties → Compatibility.
-- CrossOver licensing: the nixpkgs zip is CodeWeavers' trial build until you activate it in CrossOver itself.
+- CrossOver licensing: the nixpkgs zip is CodeWeavers' trial build until you activate it in CrossOver itself. NotProton will not set up the compatibility tool until CrossOver is activated.
 - VAC titles launch in insecure mode (upstream limitation).
 
 ## Checks
@@ -57,6 +67,6 @@ Still manual, by upstream design:
 nix flake check
 ```
 
-Evaluates the module inside a real `darwinSystem` (with a stand-in Steam package) and verifies the activation script and assertions.
+Evaluates the module inside a real `darwinSystem` (with stand-in packages) and verifies the activation script and assertions.
 
 Dev environment is devenv: `devenv shell`, `devenv test`.

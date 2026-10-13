@@ -1,25 +1,5 @@
 {
   "nodes": {
-    "fleiks": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1791916401,
-        "narHash": "sha256-2EW6O3ejLJGfk0NpLRyEUOF+3A+5s8BpvyPX26nJamY=",
-        "owner": "hcbt",
-        "repo": "fleiks",
-        "rev": "2318b5b042b078befe6ed3c11625d720c6d1e165",
-        "type": "github"
-      },
-      "original": {
-        "owner": "hcbt",
-        "repo": "fleiks",
-        "type": "github"
-      }
-    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -58,7 +38,6 @@
     },
     "root": {
       "inputs": {
-        "fleiks": "fleiks",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs"
       }

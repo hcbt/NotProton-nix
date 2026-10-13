@@ -67,25 +67,42 @@ in
       '';
     };
 
-    package = lib.mkPackageOption pkgs "notproton" {
-      example = "inputs.fleiks.packages.\${pkgs.stdenv.hostPlatform.system}.notproton";
+    package = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      example = lib.literalExpression "inputs.fleiks.packages.\${pkgs.stdenv.hostPlatform.system}.notproton";
+      description = ''
+        Package providing Applications/NotProton.app. Required, no
+        default: NotProton is not in nixpkgs. fleiks provides it. The
+        package must contain a real NotProton.app; it is copied to
+        /Applications and replaced when its bundle version changes.
+      '';
     };
 
     steam.package = lib.mkOption {
       type = lib.types.nullOr lib.types.package;
       default = null;
-      example = lib.literalExpression "pkgs.steam-mac";
+      example = lib.literalExpression "inputs.fleiks.packages.\${pkgs.stdenv.hostPlatform.system}.steam";
       description = ''
-        Package providing Applications/Steam.app. Required: nixpkgs'
-        pkgs.steam is the Linux client and cannot be used on macOS, so
-        there is no default. The package must contain a real Steam.app;
-        it is copied to /Applications once and then left to Steam's
-        self-updater and NotProton's patcher.
+        Package providing Applications/Steam.app. Required, no default:
+        nixpkgs' pkgs.steam is the Linux client and cannot be used on
+        macOS. fleiks provides a macOS steam package. The package must
+        contain a real Steam.app; it is copied to /Applications once and
+        then left to Steam's self-updater and NotProton's patcher.
       '';
     };
 
-    crossover.package = lib.mkPackageOption pkgs "crossover" {
-      example = "pkgs.crossover";
+    crossover.package = lib.mkOption {
+      type = lib.types.nullOr lib.types.package;
+      default = null;
+      example = lib.literalExpression "pkgs.crossover";
+      description = ''
+        Package providing Applications/CrossOver.app. Required, no
+        default. nixpkgs' pkgs.crossover is the macOS app (26.3.0, the
+        stable build NotProton supports) if you set it explicitly. The
+        package must contain a real CrossOver.app; it is copied to
+        /Applications and replaced when its bundle version changes.
+      '';
     };
   };
 
@@ -96,6 +113,13 @@ in
         message = "notproton: only aarch64-darwin is supported (NotProton and CrossOver are arm64-only).";
       }
       {
+        assertion = cfg.package != null;
+        message = ''
+          notproton: notproton.package must be set. NotProton is not in
+          nixpkgs; supply a package containing Applications/NotProton.app
+          (e.g. fleiks' notproton package).'';
+      }
+      {
         assertion = cfg.steam.package != null;
         message = ''
           notproton: notproton.steam.package must be set. nixpkgs has no
@@ -103,17 +127,26 @@ in
           so supply a package containing Applications/Steam.app.'';
       }
       {
+        assertion = cfg.crossover.package != null;
+        message = ''
+          notproton: notproton.crossover.package must be set (e.g.
+          pkgs.crossover). Supply a package containing
+          Applications/CrossOver.app.'';
+      }
+      {
         assertion = user != "";
         message = "notproton: notproton.user must name the user who owns Steam/CrossOver/NotProton state.";
       }
     ];
 
-    warnings = lib.optional (lib.getVersion cfg.crossover.package != "26.3.0") ''
-      notproton: crossover package is version ${lib.getVersion cfg.crossover.package}, not 26.3.0.
-      NotProton pins supported CrossOver builds by loader hash and will refuse
-      builds it does not know. 26.3.0 (nixpkgs pkgs.crossover) is the supported
-      stable build; a CrossOver Preview package is fine if NotProton lists it.
-    '';
+    warnings =
+      lib.optional (cfg.crossover.package != null && lib.getVersion cfg.crossover.package != "26.3.0")
+        ''
+          notproton: crossover package is version ${lib.getVersion cfg.crossover.package}, not 26.3.0.
+          NotProton pins supported CrossOver builds by loader hash and will refuse
+          builds it does not know. 26.3.0 (nixpkgs pkgs.crossover) is the supported
+          stable build; a CrossOver Preview package is fine if NotProton lists it.
+        '';
 
     system.activationScripts.notproton.text = ''
       echo "notproton: installing Steam/CrossOver/NotProton to /Applications..."
