@@ -192,7 +192,7 @@ in
       /usr/bin/lipo -thin arm64 "$work/steam_osx" -output "$steamBin"
       /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
       /bin/cp "$steamBin" "$inner"
-      /usr/bin/chown ${user}:staff "$inner"
+      /usr/sbin/chown ${user}:staff "$inner"
       /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
       /usr/bin/codesign -f -s - "$steamBin"
       /usr/bin/codesign -f -s - "$steamApp"
