@@ -190,13 +190,15 @@ in
       chown -R ${user}:staff "$steamApp"
       chmod -R u+w "$steamApp"
       /usr/bin/lipo -thin arm64 "$work/steam_osx" -output "$steamBin"
-      /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
-      /bin/cp "$steamBin" "$inner"
-      /usr/sbin/chown ${user}:staff "$inner"
       /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
       /usr/bin/codesign -f -s - "$steamBin"
       /usr/bin/codesign -f -s - "$steamApp"
-      /usr/bin/codesign -f -s - "$inner"
+      # The Library copy picks up com.apple.provenance, which codesign
+      # rejects. Install the already-signed binary and do not sign it again.
+      /bin/rm -f "$inner"
+      /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
+      /bin/cp -X "$steamBin" "$inner"
+      /usr/sbin/chown ${user}:staff "$inner"
       /bin/rm -rf "$work"
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
