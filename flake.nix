@@ -83,6 +83,7 @@
             ''
               grep -q "other-postactivation-marker" <<< "$activation"
               grep -q "installing Steam/CrossOver/NotProton" <<< "$activation"
+              grep -q "lsregister -f" <<< "$activation"
               grep -q "Steam.app" <<< "$activation"
               grep -q "CrossOver.app" <<< "$activation"
               grep -q "NotProton.app" <<< "$activation"

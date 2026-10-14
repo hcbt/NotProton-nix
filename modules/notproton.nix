@@ -51,6 +51,13 @@ let
           fi
         ''
     }
+    # Steam self-updates inside its bundle and NotProton re-signs it, both
+    # after this script runs; CrossOver/NotProton are replaced wholesale.
+    # Any in-place bundle change leaves LaunchServices holding the old
+    # bundle's registration, and launchd then kills the app with
+    # "Taskgated Invalid Signature" even though codesign verifies.
+    # Re-registering on every activation repairs that state.
+    /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$dstApp" || true
   '';
 in
 {
