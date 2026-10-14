@@ -171,9 +171,14 @@ in
       steamApp="/Applications/Nix Apps/Steam.app"
       steamBin="$steamApp/Contents/MacOS/steam_osx"
       inner="/Users/${user}/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
+      # sudo without -H keeps HOME=/var/root, and Steam then tries to
+      # create /var/root/Library/Application Support/Steam.
+      runAsUser() {
+        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -H -u ${user} -- env HOME="/Users/${user}" USER="${user}" LOGNAME="${user}" "$@"
+      }
       if [ ! -x "$inner" ] && [ -x "$steamBin" ]; then
         echo "notproton: downloading the Steam client"
-        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -u ${user} -- "$steamBin" >/var/tmp/notproton-steam-bootstrap.log 2>&1 &
+        runAsUser "$steamBin" >/var/tmp/notproton-steam-bootstrap.log 2>&1 &
         i=0
         while [ ! -x "$inner" ] && [ "$i" -lt 180 ]; do
           /bin/sleep 2
@@ -200,7 +205,7 @@ in
       setupApp="/Applications/Nix Apps/NotProton.app/Contents/MacOS/NotProtonApp"
       if [ -x "$setupApp" ]; then
         echo "notproton: running setup for ${user}"
-        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -u ${user} -- "$setupApp" --setup
+        runAsUser "$setupApp" --setup
       else
         echo "notproton: $setupApp is not installed, skipping setup" >&2
         exit 1
