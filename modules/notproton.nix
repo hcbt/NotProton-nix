@@ -166,8 +166,8 @@ in
       fi
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
-      # NotProton's files and, if CrossOver is activated, clones and
-      # patches it. An unactivated CrossOver is not a failure.
+      # NotProton's files, clones and patches CrossOver, and sets it as
+      # Steam's default compatibility tool. Activation is not required.
       setupApp="/Applications/Nix Apps/NotProton.app/Contents/MacOS/NotProtonApp"
       if [ -x "$setupApp" ]; then
         echo "notproton: running setup for ${user}"

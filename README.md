@@ -54,12 +54,11 @@ All three apps are added to `environment.systemPackages` and nix-darwin installs
 - **Steam.app** — NotProton normally patches Steam in place, which a read-only bundle refuses. The fleiks steam package is pre-patched at build time instead (dylib, `LSEnvironment` insert, ad-hoc signature), the module sets NotProton's `steamAppPath` default to the Nix Apps bundle, and NotProton recognises the pre-patched state and skips patching. Steam self-updates into `~/Library/Application Support/Steam`, never the bundle, so the rsync-managed copy stays pristine.
 - **NotProton.app** — needs no glue; it is launched from Nix Apps like any other app.
 
-NotProton is otherwise GUI-only. Activation runs `NotProtonApp --setup` as `notproton.user` after the apps are installed. That deploys NotProton's files for Steam and, if CrossOver is activated, clones and patches it. An unactivated CrossOver is reported and is not a failure. It does not open the window.
+NotProton is otherwise GUI-only. Activation runs `NotProtonApp --setup` as `notproton.user` after the apps are installed. That deploys NotProton's files, clones and patches CrossOver whether or not it is activated, and sets that tool as Steam's default when Steam has no config yet. It does not open the window.
 
 Still manual, by upstream design:
 
-- Steam → Settings → Compatibility: pick the CrossOver 26.3 (Rosetta) tool as default. Per-game overrides live in each game's Properties → Compatibility.
-- CrossOver licensing: the nixpkgs zip is CodeWeavers' trial build until you activate it in CrossOver itself. NotProton will not set up the compatibility tool until CrossOver is activated.
+- Per-game compatibility overrides live in each game's Properties → Compatibility. The global default is set only when Steam has no `config.vdf` yet.
 - VAC titles launch in insecure mode (upstream limitation).
 
 ## Checks
