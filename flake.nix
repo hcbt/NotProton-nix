@@ -79,15 +79,20 @@
                 testConfig.config.system.activationScripts.script.text
               );
               assertions = builtins.toJSON (map (a: a.assertion) testConfig.config.assertions);
+              packages = builtins.toJSON (map (p: p.name) testConfig.config.environment.systemPackages);
             }
             ''
               grep -q "other-postactivation-marker" <<< "$activation"
-              grep -q "installing Steam/CrossOver/NotProton" <<< "$activation"
+              grep -q "installing Steam.app to /Applications" <<< "$activation"
               grep -q "lsregister -f" <<< "$activation"
-              grep -q "Steam.app" <<< "$activation"
-              grep -q "CrossOver.app" <<< "$activation"
-              grep -q "NotProton.app" <<< "$activation"
-              if grep -q "launchctl asuser" <<< "$activation"; then
+              grep -q "manualCrossOverPaths" <<< "$activation"
+              grep -q '"notproton-test"' <<< "$packages"
+              grep -q '"crossover-test"' <<< "$packages"
+              if grep -q '"steam-test"' <<< "$packages"; then
+                echo "steam must stay a writable copy, not a systemPackage" >&2
+                exit 1
+              fi
+              if grep -q "open.*NotProton.app" <<< "$activation"; then
                 echo "activation must not launch NotProton" >&2
                 exit 1
               fi

@@ -39,7 +39,7 @@ All three packages are required; the module has no package defaults. [fleiks](ht
 | Option | Default | Notes |
 | --- | --- | --- |
 | `notproton.enable` | `false` | Turn the whole stack on. |
-| `notproton.user` | `system.primaryUser` | Owns the `/Applications` copies and the NotProton state under `~/Library/Application Support/notproton`. |
+| `notproton.user` | `system.primaryUser` | Owns the `/Applications/Steam.app` copy and the NotProton state under `~/Library/Application Support/notproton`. |
 | `notproton.package` | **required, no default** | Package containing `Applications/NotProton.app`. Not in nixpkgs; fleiks provides it. |
 | `notproton.steam.package` | **required, no default** | Package containing `Applications/Steam.app`. nixpkgs' `pkgs.steam` is the Linux client (`buildFHSEnv`/bubblewrap) — there is no macOS Steam in nixpkgs; fleiks provides one. |
 | `notproton.crossover.package` | **required, no default** | Package containing `Applications/CrossOver.app`. nixpkgs' `pkgs.crossover` is the macOS app, currently 26.3.0 — the stable build NotProton supports. |
@@ -48,10 +48,10 @@ Enabling the module without setting all three fails evaluation with an assertion
 
 ## How it works
 
-NotProton patches `/Applications/Steam.app` in place (copies in `notproton.dylib`, edits `Info.plist`, ad-hoc re-signs) and discovers CrossOver only under `/Applications` or `~/Applications`. Nix store symlinks in `/Applications/Nix Apps` are read-only and invisible to that discovery, so on activation the module copies real, user-owned, writable apps into `/Applications`:
+CrossOver and NotProton are immutable payloads, so the module adds their packages to `environment.systemPackages` and nix-darwin installs them its usual way (`/Applications/Nix Apps`, read-only). Two pieces of glue make that work with upstream NotProton:
 
-- **Steam.app** — copied only if absent. Steam self-updates inside its bundle and NotProton patches it; the module never overwrites it.
-- **CrossOver.app** / **NotProton.app** — replaced only when `CFBundleVersion` changes.
+- **CrossOver.app** — NotProton only scans `/Applications` and `~/Applications`, so the module sets its `manualCrossOverPaths` user default to `/Applications/Nix Apps/CrossOver.app`.
+- **Steam.app** — the one exception. NotProton patches it in place (copies in `notproton.dylib`, edits `Info.plist`, ad-hoc re-signs) and Steam self-updates inside its bundle, so on activation the module copies a real, user-owned, writable `Steam.app` into `/Applications`, only if absent, and never overwrites it. It also re-registers the bundle with LaunchServices on every activation: an in-place bundle change otherwise leaves LaunchServices holding the old registration and launchd kills Steam with `Taskgated Invalid Signature`.
 
 NotProton is GUI-only — there is no CLI or headless install. Open NotProton yourself and click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, patches Steam, and registers the `notproton-26.3` compatibility tool. Activation only installs the apps; it never launches anything.
 

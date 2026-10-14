@@ -9,53 +9,34 @@ let
   cfg = config.notproton;
   user = cfg.user;
 
-  # NotProton patches Steam.app in place (dylib copy, Info.plist edit,
-  # ad-hoc re-sign) and discovers CrossOver only under /Applications or
-  # ~/Applications, so all three apps must land as real, user-owned,
-  # writable copies in /Applications -- Nix store symlinks do not work.
-  installApp = src: app: mode: ''
-    srcApp="${src}/Applications/${app}"
-    dstApp="/Applications/${app}"
+  # CrossOver and NotProton are immutable payloads, so they install the
+  # nix-darwin way: environment.systemPackages -> /Applications/Nix Apps.
+  # Steam is the one exception. NotProton patches Steam.app in place
+  # (dylib copy, Info.plist edit, ad-hoc re-sign) and Steam self-updates
+  # inside its bundle, so Steam must be a real, user-owned, writable copy
+  # in /Applications; nix-darwin's read-only rsync copies fail both.
+  installSteam = src: ''
+    srcApp="${src}/Applications/Steam.app"
+    dstApp="/Applications/Steam.app"
     if [ ! -d "$srcApp" ]; then
-      echo "notproton: $srcApp not found; the package must contain Applications/${app}" >&2
+      echo "notproton: $srcApp not found; the package must contain Applications/Steam.app" >&2
       exit 1
     fi
-    ${
-      if mode == "if-absent" then
-        # Steam self-updates inside its bundle and NotProton patches it;
-        # never overwrite an installed copy.
-        ''
-          if [ -d "$dstApp" ]; then
-            echo "notproton: $dstApp already present, leaving it alone"
-          else
-            echo "notproton: installing ${app} to /Applications"
-            cp -R "$srcApp" "$dstApp"
-            chown -R ${user}:staff "$dstApp"
-            chmod -R u+w "$dstApp"
-          fi
-        ''
-      else
-        # Replace only when the bundle version changes.
-        ''
-          srcVer=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$srcApp/Contents/Info.plist" 2>/dev/null || echo none)
-          dstVer=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$dstApp/Contents/Info.plist" 2>/dev/null || echo none)
-          if [ "$srcVer" = "$dstVer" ] && [ -d "$dstApp" ]; then
-            echo "notproton: ${app} $srcVer already installed"
-          else
-            echo "notproton: installing ${app} $srcVer to /Applications (was: $dstVer)"
-            rm -rf "$dstApp"
-            cp -R "$srcApp" "$dstApp"
-            chown -R ${user}:staff "$dstApp"
-            chmod -R u+w "$dstApp"
-          fi
-        ''
-    }
-    # Steam self-updates inside its bundle and NotProton re-signs it, both
-    # after this script runs; CrossOver/NotProton are replaced wholesale.
-    # Any in-place bundle change leaves LaunchServices holding the old
-    # bundle's registration, and launchd then kills the app with
-    # "Taskgated Invalid Signature" even though codesign verifies.
-    # Re-registering on every activation repairs that state.
+    # Steam self-updates inside its bundle and NotProton patches it;
+    # never overwrite an installed copy.
+    if [ -d "$dstApp" ]; then
+      echo "notproton: $dstApp already present, leaving it alone"
+    else
+      echo "notproton: installing Steam.app to /Applications"
+      cp -R "$srcApp" "$dstApp"
+      chown -R ${user}:staff "$dstApp"
+      chmod -R u+w "$dstApp"
+    fi
+    # An in-place bundle change (Steam self-update, NotProton re-sign)
+    # leaves LaunchServices holding the old bundle's registration, and
+    # launchd then kills the app with "Taskgated Invalid Signature" even
+    # though codesign verifies. Re-registering on every activation
+    # repairs that state.
     /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$dstApp" || true
   '';
 in
@@ -80,8 +61,8 @@ in
       description = ''
         Package providing Applications/NotProton.app. Required, no
         default: NotProton is not in nixpkgs. fleiks provides it. The
-        package must contain a real NotProton.app; it is copied to
-        /Applications and replaced when its bundle version changes.
+        package is added to environment.systemPackages and installed by
+        nix-darwin's applications mechanism (/Applications/Nix Apps).
       '';
     };
 
@@ -106,8 +87,11 @@ in
         Package providing Applications/CrossOver.app. Required, no
         default. nixpkgs' pkgs.crossover is the macOS app (26.3.0, the
         stable build NotProton supports) if you set it explicitly. The
-        package must contain a real CrossOver.app; it is copied to
-        /Applications and replaced when its bundle version changes.
+        package is added to environment.systemPackages and installed by
+        nix-darwin's applications mechanism (/Applications/Nix Apps);
+        the module points NotProton at it via the manualCrossOverPaths
+        user default, since NotProton only scans /Applications and
+        ~/Applications itself.
       '';
     };
   };
@@ -160,11 +144,21 @@ in
     # postActivation is in that list, and its `text` is a lines type, so
     # this composes with other modules' postActivation definitions
     # instead of overriding them.
+    environment.systemPackages = [
+      cfg.package
+      cfg.crossover.package
+    ];
+
+    # CrossOver lands in /Applications/Nix Apps, outside the /Applications
+    # and ~/Applications roots NotProton scans; register it through its
+    # manualCrossOverPaths user default instead.
+    system.defaults.CustomUserPreferences."com.notproton.NotProton" = {
+      manualCrossOverPaths = [ "/Applications/Nix Apps/CrossOver.app" ];
+    };
+
     system.activationScripts.postActivation.text = ''
-      echo "notproton: installing Steam/CrossOver/NotProton to /Applications..."
-      ${installApp cfg.steam.package "Steam.app" "if-absent"}
-      ${installApp cfg.crossover.package "CrossOver.app" "on-version-change"}
-      ${installApp cfg.package "NotProton.app" "on-version-change"}
+      echo "notproton: setting up Steam, CrossOver and NotProton..."
+      ${installSteam cfg.steam.package}
     '';
   };
 }
