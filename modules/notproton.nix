@@ -193,12 +193,16 @@ in
       /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
       /usr/bin/codesign -f -s - "$steamBin"
       /usr/bin/codesign -f -s - "$steamApp"
+      # lipo creates the executable mode 644, and launchd then refuses
+      # to spawn it.
+      /bin/chmod 755 "$steamBin"
       # The Library copy picks up com.apple.provenance, which codesign
       # rejects. Install the already-signed binary and do not sign it again.
       /bin/rm -f "$inner"
       /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
       /bin/cp -X "$steamBin" "$inner"
       /usr/sbin/chown ${user}:staff "$inner"
+      /bin/chmod 755 "$inner"
       /bin/rm -rf "$work"
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
