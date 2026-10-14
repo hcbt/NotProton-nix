@@ -53,7 +53,7 @@ NotProton patches `/Applications/Steam.app` in place (copies in `notproton.dylib
 - **Steam.app** — copied only if absent. Steam self-updates inside its bundle and NotProton patches it; the module never overwrites it.
 - **CrossOver.app** / **NotProton.app** — replaced only when `CFBundleVersion` changes.
 
-NotProton is GUI-only — there is no CLI or headless install. On activation, if NotProton has not finished its Steam install yet (`~/Library/Application Support/notproton/dylib.version` missing), the module opens NotProton once for `notproton.user`. Click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, patches Steam, and registers the `notproton-26.3` compatibility tool.
+NotProton is GUI-only — there is no CLI or headless install. Open NotProton yourself and click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, patches Steam, and registers the `notproton-26.3` compatibility tool. Activation only installs the apps; it never launches anything.
 
 Still manual, by upstream design:
 

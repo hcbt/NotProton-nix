@@ -8,7 +8,6 @@
 let
   cfg = config.notproton;
   user = cfg.user;
-  home = "/Users/${user}";
 
   # NotProton patches Steam.app in place (dylib copy, Info.plist edit,
   # ad-hoc re-sign) and discovers CrossOver only under /Applications or
@@ -166,17 +165,6 @@ in
       ${installApp cfg.steam.package "Steam.app" "if-absent"}
       ${installApp cfg.crossover.package "CrossOver.app" "on-version-change"}
       ${installApp cfg.package "NotProton.app" "on-version-change"}
-
-      # First-run wiring: NotProton is GUI-only (no CLI/headless install).
-      # Open it once for the user; it clones CrossOver into
-      # ~/Library/Application Support/notproton/runners/ and patches
-      # Steam.app from its Status view. dylib.version is written by
-      # NotProton when the Steam install completes, so this fires only
-      # until setup is done.
-      if [ ! -f "${home}/Library/Application Support/notproton/dylib.version" ]; then
-        echo "notproton: first run -- opening NotProton for ${user} to finish setup"
-        /bin/launchctl asuser "$(/usr/bin/id -u ${user})" /usr/bin/open -a /Applications/NotProton.app || true
-      fi
     '';
   };
 }

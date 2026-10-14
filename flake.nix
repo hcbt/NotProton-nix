@@ -87,6 +87,10 @@
               grep -q "Steam.app" <<< "$activation"
               grep -q "CrossOver.app" <<< "$activation"
               grep -q "NotProton.app" <<< "$activation"
+              if grep -q "launchctl asuser" <<< "$activation"; then
+                echo "activation must not launch NotProton" >&2
+                exit 1
+              fi
               if grep -q "false" <<< "$assertions"; then
                 echo "module assertions failed: $assertions" >&2
                 exit 1
