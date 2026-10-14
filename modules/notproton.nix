@@ -148,7 +148,13 @@ in
           stable build; a CrossOver Preview package is fine if NotProton lists it.
         '';
 
-    system.activationScripts.notproton.text = ''
+    # nix-darwin builds the activate script from a fixed list of
+    # activationScripts names; an arbitrary name (e.g. "notproton") is
+    # evaluated but never interpolated into it and never runs.
+    # postActivation is in that list, and its `text` is a lines type, so
+    # this composes with other modules' postActivation definitions
+    # instead of overriding them.
+    system.activationScripts.postActivation.text = ''
       echo "notproton: installing Steam/CrossOver/NotProton to /Applications..."
       ${installApp cfg.steam.package "Steam.app" "if-absent"}
       ${installApp cfg.crossover.package "CrossOver.app" "on-version-change"}

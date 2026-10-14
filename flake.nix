@@ -52,6 +52,13 @@
               crossover.package = dummyApp "crossover-test" "CrossOver.app";
             };
           }
+          # Composition probe: another module's postActivation must merge
+          # with ours (lines type), not be overridden by it.
+          {
+            system.activationScripts.postActivation.text = ''
+              echo "other-postactivation-marker"
+            '';
+          }
         ];
       };
     in
@@ -60,16 +67,21 @@
 
       checks.${system} = {
         # Forces full module evaluation (options, assertions, activation
-        # script) without realising the app packages.
+        # script) without realising the app packages. The activation
+        # assertions read the *built* activate script
+        # (activationScripts.script.text): nix-darwin only interpolates a
+        # fixed list of activationScripts names into it, so asserting on
+        # our own slot's .text would pass even if the script never runs.
         module-eval =
           pkgs.runCommand "notproton-module-eval"
             {
               activation = builtins.unsafeDiscardStringContext (
-                testConfig.config.system.activationScripts.notproton.text
+                testConfig.config.system.activationScripts.script.text
               );
               assertions = builtins.toJSON (map (a: a.assertion) testConfig.config.assertions);
             }
             ''
+              grep -q "other-postactivation-marker" <<< "$activation"
               grep -q "installing Steam/CrossOver/NotProton" <<< "$activation"
               grep -q "Steam.app" <<< "$activation"
               grep -q "CrossOver.app" <<< "$activation"
