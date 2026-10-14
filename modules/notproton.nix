@@ -152,74 +152,114 @@ in
     # this composes with other modules' postActivation definitions
     # instead of overriding them.
     system.activationScripts.postActivation.text = ''
-      echo "notproton: setting up Steam, CrossOver and NotProton..."
-      # NotProton clones CrossOver before patching the clone, and the
-      # clone keeps the source's permissions. nix-darwin installs the
-      # source read-only, so hand it to the user writable; also repair
-      # any clone already made from the read-only copy.
-      if [ -d "${crossOverApp}" ]; then
-        chown -R ${user}:staff "${crossOverApp}"
-        chmod -R u+w "${crossOverApp}"
-      fi
-      if [ -d "${runnersDir}" ]; then
-        chmod -R u+w "${runnersDir}"
-      fi
-      # Valve's installer is an Intel bootstrap. Launching it starts
-      # Steam under Rosetta, and the first file it writes is another
-      # Intel copy, not the client. The arm64 executable is the
-      # macos-signed-2 package from the client manifest.
-      steamApp="/Applications/Nix Apps/Steam.app"
-      steamBin="$steamApp/Contents/MacOS/steam_osx"
-      inner="/Users/${user}/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
-      work=$(/usr/bin/mktemp -d)
-      echo "notproton: downloading the arm64 Steam client"
-      /usr/bin/curl -fsSL -o "$work/manifest" https://client-update.steamstatic.com/steam_client_osx
-      pkg=$(/usr/bin/awk '/macos-signed-2/ { grab=1 } grab && /"file"/ { gsub(/"/, "", $2); print $2; exit }' "$work/manifest")
-      if [ -z "$pkg" ]; then
-        echo "notproton: macos-signed-2 package not in the Steam manifest" >&2
-        exit 1
-      fi
-      /usr/bin/curl -fsSL -o "$work/steam_osx.zip" "https://client-update.steamstatic.com/$pkg"
-      /usr/bin/unzip -p "$work/steam_osx.zip" steam_osx > "$work/steam_osx"
-      /bin/rm -rf "$work/manifest" "$work/steam_osx.zip"
-      if ! /usr/bin/lipo -info "$work/steam_osx" | /usr/bin/grep -q arm64; then
-        echo "notproton: downloaded Steam client has no arm64 slice" >&2
-        exit 1
-      fi
-      echo "notproton: installing the arm64 Steam client"
-      chown -R ${user}:staff "$steamApp"
-      chmod -R u+w "$steamApp"
-      /usr/bin/lipo -thin arm64 "$work/steam_osx" -output "$steamBin"
-      /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
-      /usr/bin/codesign -f -s - "$steamBin"
-      /usr/bin/codesign -f -s - "$steamApp"
-      # lipo creates the executable mode 644, and launchd then refuses
-      # to spawn it.
-      /bin/chmod 755 "$steamBin"
-      # The Library copy picks up com.apple.provenance, which codesign
-      # rejects. Install the already-signed binary and do not sign it again.
-      /bin/rm -f "$inner"
-      /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
-      /bin/cp -X "$steamBin" "$inner"
-      /usr/sbin/chown ${user}:staff "$inner"
-      /bin/chmod 755 "$inner"
-      /bin/rm -rf "$work"
-      # Apps are already in /Applications/Nix Apps (that script runs
-      # first) and the user defaults are already written. --setup deploys
-      # NotProton's files, clones and patches CrossOver, and sets it as
-      # Steam's default compatibility tool. Activation is not required.
-      # sudo without -H keeps HOME=/var/root.
-      runAsUser() {
-        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -H -u ${user} -- env HOME="/Users/${user}" USER="${user}" LOGNAME="${user}" "$@"
-      }
-      setupApp="/Applications/Nix Apps/NotProton.app/Contents/MacOS/NotProtonApp"
-      if [ -x "$setupApp" ]; then
-        echo "notproton: running setup for ${user}"
-        runAsUser "$setupApp" --setup
-      else
-        echo "notproton: $setupApp is not installed, skipping setup" >&2
-        exit 1
-      fi
+            echo "notproton: setting up Steam, CrossOver and NotProton..."
+            # NotProton clones CrossOver before patching the clone, and the
+            # clone keeps the source's permissions. nix-darwin installs the
+            # source read-only, so hand it to the user writable; also repair
+            # any clone already made from the read-only copy.
+            if [ -d "${crossOverApp}" ]; then
+              chown -R ${user}:staff "${crossOverApp}"
+              chmod -R u+w "${crossOverApp}"
+            fi
+            if [ -d "${runnersDir}" ]; then
+              chmod -R u+w "${runnersDir}"
+            fi
+            # Valve's installer is an Intel bootstrap. Launching it starts
+            # Steam under Rosetta, and the first file it writes is another
+            # Intel copy, not the client. The arm64 executable is the
+            # macos-signed-2 package from the client manifest.
+            steamApp="/Applications/Nix Apps/Steam.app"
+            steamBin="$steamApp/Contents/MacOS/steam_osx"
+            inner="/Users/${user}/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
+            work=$(/usr/bin/mktemp -d)
+            echo "notproton: downloading the arm64 Steam client"
+            /usr/bin/curl -fsSL -o "$work/manifest" https://client-update.steamstatic.com/steam_client_osx
+            pkg=$(/usr/bin/awk '/macos-signed-2/ { grab=1 } grab && /"file"/ { gsub(/"/, "", $2); print $2; exit }' "$work/manifest")
+            if [ -z "$pkg" ]; then
+              echo "notproton: macos-signed-2 package not in the Steam manifest" >&2
+              exit 1
+            fi
+            /usr/bin/curl -fsSL -o "$work/steam_osx.zip" "https://client-update.steamstatic.com/$pkg"
+            /usr/bin/unzip -p "$work/steam_osx.zip" steam_osx > "$work/steam_osx"
+            /bin/rm -rf "$work/manifest" "$work/steam_osx.zip"
+            if ! /usr/bin/lipo -info "$work/steam_osx" | /usr/bin/grep -q arm64; then
+              echo "notproton: downloaded Steam client has no arm64 slice" >&2
+              exit 1
+            fi
+            echo "notproton: installing the arm64 Steam client"
+            chown -R ${user}:staff "$steamApp"
+            chmod -R u+w "$steamApp"
+            /usr/bin/lipo -thin arm64 "$work/steam_osx" -output "$steamBin"
+            /usr/bin/codesign -f -s - "$steamBin"
+            /usr/bin/codesign -f -s - "$steamApp"
+            # lipo creates the executable mode 644, and launchd then refuses
+            # to spawn it.
+            /bin/chmod 755 "$steamBin"
+            # The arm64 slice of notproton.dylib has a LINKEDIT string pool at
+            # 0x443A4. dyld rejects that and Steam aborts on launch. The Intel
+            # slice is aligned, which is why the old client ran. Shift the
+            # pool by 4 bytes, then sign. Do this after the bundle sign so
+            # that sign does not put the broken dylib back.
+            payload="/Applications/Nix Apps/NotProton.app/Contents/Resources/NotProtonApp_NotProtonApp.bundle/payload/notproton.dylib"
+            /usr/bin/lipo -thin arm64 "$payload" -output "$work/notproton.dylib"
+            /bin/cat > "$work/align.py" << 'PY'
+      import struct
+      import sys
+
+      path = sys.argv[1]
+      data = bytearray(open(path, "rb").read())
+      if struct.unpack_from("<I", data, 0)[0] != 0xFEEDFACF:
+          sys.exit("notproton.dylib arm64 slice is not a thin arm64 Mach-O")
+      ncmds = struct.unpack_from("<I", data, 16)[0]
+      off = 32
+      stroff_pos = stroff = strsize = sig_off = None
+      for _ in range(ncmds):
+          cmd, cmdsize = struct.unpack_from("<II", data, off)
+          if cmd == 0x2:
+              stroff, strsize = struct.unpack_from("<II", data, off + 16)
+              stroff_pos = off + 16
+          elif cmd == 0x1D:
+              sig_off = struct.unpack_from("<I", data, off + 8)[0]
+          off += cmdsize
+      if stroff is None:
+          sys.exit("notproton.dylib has no symbol table")
+      pad = (8 - (stroff % 8)) % 8
+      if pad:
+          if sig_off is None or sig_off - (stroff + strsize) < pad:
+              sys.exit("notproton.dylib string pool has no room to align")
+          data[stroff + pad : stroff + pad + strsize] = data[stroff : stroff + strsize]
+          data[stroff : stroff + pad] = b"\0" * pad
+          struct.pack_into("<I", data, stroff_pos, stroff + pad)
+      open(path, "wb").write(data)
+      PY
+            /usr/bin/python3 "$work/align.py" "$work/notproton.dylib"
+            /bin/cp "$work/notproton.dylib" "$steamApp/Contents/MacOS/notproton.dylib"
+            /bin/chmod 755 "$steamApp/Contents/MacOS/notproton.dylib"
+            /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
+            # The Library copy picks up com.apple.provenance, which codesign
+            # rejects. Install the already-signed binary and do not sign it again.
+            /bin/rm -f "$inner"
+            /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
+            /bin/cp -X "$steamBin" "$inner"
+            /usr/sbin/chown ${user}:staff "$inner"
+            /bin/chmod 755 "$inner"
+            /bin/rm -rf "$work"
+            # Apps are already in /Applications/Nix Apps (that script runs
+            # first) and the user defaults are already written. --setup deploys
+            # NotProton's files, clones and patches CrossOver, and sets it as
+            # Steam's default compatibility tool. Activation is not required.
+            # sudo without -H keeps HOME=/var/root.
+            runAsUser() {
+              /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -H -u ${user} -- env HOME="/Users/${user}" USER="${user}" LOGNAME="${user}" "$@"
+            }
+            setupApp="/Applications/Nix Apps/NotProton.app/Contents/MacOS/NotProtonApp"
+            if [ -x "$setupApp" ]; then
+              echo "notproton: running setup for ${user}"
+              runAsUser "$setupApp" --setup
+            else
+              echo "notproton: $setupApp is not installed, skipping setup" >&2
+              exit 1
+            fi
     '';
   };
 }
