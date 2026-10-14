@@ -207,8 +207,10 @@ in
       /bin/rm -f "$inner"
       /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
       /bin/cp -X "$steamBin" "$inner"
-      /usr/sbin/chown ${user}:staff "$inner"
       /bin/chmod 755 "$inner"
+      # mkdir above runs as root. Steam then cannot write the client
+      # next to that binary, finds the update uninstalled, and exits.
+      /usr/sbin/chown -R ${user}:staff "/Users/${user}/Library/Application Support/Steam/Steam.AppBundle"
       /bin/rm -rf "$work"
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
