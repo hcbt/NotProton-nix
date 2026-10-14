@@ -54,7 +54,7 @@ All three apps are added to `environment.systemPackages` and nix-darwin installs
 - **Steam.app** — NotProton normally patches Steam in place, which a read-only bundle refuses. The fleiks steam package is pre-patched at build time instead (dylib, `LSEnvironment` insert, ad-hoc signature), the module sets NotProton's `steamAppPath` default to the Nix Apps bundle, and NotProton recognises the pre-patched state and skips patching. Steam self-updates into `~/Library/Application Support/Steam`, never the bundle, so the rsync-managed copy stays pristine.
 - **NotProton.app** — needs no glue; it is launched from Nix Apps like any other app.
 
-NotProton is GUI-only — there is no CLI or headless install. Open NotProton yourself and click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, verifies the pre-patched Steam, and registers the `notproton-26.3` compatibility tool. Activation only installs the apps; it never launches anything.
+NotProton is otherwise GUI-only. Activation runs `NotProtonApp --setup` as `notproton.user` after the apps are installed. That deploys NotProton's files for Steam and, if CrossOver is activated, clones and patches it. An unactivated CrossOver is reported and is not a failure. It does not open the window.
 
 Still manual, by upstream design:
 

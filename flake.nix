@@ -94,9 +94,10 @@
                 exit 1
               fi
               if grep -q "open.*NotProton.app" <<< "$activation"; then
-                echo "activation must not launch NotProton" >&2
+                echo "activation must not open the NotProton GUI" >&2
                 exit 1
               fi
+              grep -q -- "--setup" <<< "$activation"
               if grep -q "false" <<< "$assertions"; then
                 echo "module assertions failed: $assertions" >&2
                 exit 1
