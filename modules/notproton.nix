@@ -9,36 +9,26 @@ let
   cfg = config.notproton;
   user = cfg.user;
 
-  # CrossOver and NotProton are immutable payloads, so they install the
-  # nix-darwin way: environment.systemPackages -> /Applications/Nix Apps.
-  # Steam is the one exception. NotProton patches Steam.app in place
-  # (dylib copy, Info.plist edit, ad-hoc re-sign) and Steam self-updates
-  # inside its bundle, so Steam must be a real, user-owned, writable copy
-  # in /Applications; nix-darwin's read-only rsync copies fail both.
-  installSteam = src: ''
-    srcApp="${src}/Applications/Steam.app"
-    dstApp="/Applications/Steam.app"
-    if [ ! -d "$srcApp" ]; then
-      echo "notproton: $srcApp not found; the package must contain Applications/Steam.app" >&2
-      exit 1
-    fi
-    # Steam self-updates inside its bundle and NotProton patches it;
-    # never overwrite an installed copy.
-    if [ -d "$dstApp" ]; then
-      echo "notproton: $dstApp already present, leaving it alone"
-    else
-      echo "notproton: installing Steam.app to /Applications"
-      cp -R "$srcApp" "$dstApp"
-      chown -R ${user}:staff "$dstApp"
-      chmod -R u+w "$dstApp"
-    fi
-    # An in-place bundle change (Steam self-update, NotProton re-sign)
-    # leaves LaunchServices holding the old bundle's registration, and
-    # launchd then kills the app with "Taskgated Invalid Signature" even
-    # though codesign verifies. Re-registering on every activation
-    # repairs that state.
-    /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "$dstApp" || true
-  '';
+  # All three apps install the nix-darwin way: environment.systemPackages
+  # -> /Applications/Nix Apps. Nothing is copied to /Applications itself.
+  # Two upstream constraints shape the glue in `config`:
+  #
+  # - NotProton patches Steam.app in place, which a read-only Nix Apps
+  #   bundle refuses. The fleiks steam package is therefore pre-patched
+  #   at build time (dylib + LSEnvironment insert, ad-hoc signed), and
+  #   NotProton is pointed at the Nix Apps bundle via its steamAppPath
+  #   user default; it recognises the pre-patched state and skips
+  #   patching. Steam still self-updates, but into
+  #   ~/Library/Application Support/Steam, not the bundle.
+  # - NotProton only scans /Applications and ~/Applications for
+  #   CrossOver, so the Nix Apps bundle is registered through its
+  #   manualCrossOverPaths user default. It also clones CrossOver into
+  #   ~/Library/Application Support/notproton/runners before patching
+  #   the clone, and the clone inherits the source's permissions, so
+  #   the Nix Apps copy is handed to the user writable below (its only
+  #   job is to be a clone source; nix-darwin re-syncs it on switch).
+  crossOverApp = "/Applications/Nix Apps/CrossOver.app";
+  runnersDir = "/Users/${user}/Library/Application Support/notproton/runners";
 in
 {
   options.notproton = {
@@ -49,7 +39,7 @@ in
       default = config.system.primaryUser;
       defaultText = lib.literalExpression "config.system.primaryUser";
       description = ''
-        User who owns the /Applications app copies and whose home
+        User who owns the CrossOver clone source and whose home
         NotProton sets up (~/Library/Application Support/notproton).
       '';
     };
@@ -73,9 +63,11 @@ in
       description = ''
         Package providing Applications/Steam.app. Required, no default:
         nixpkgs' pkgs.steam is the Linux client and cannot be used on
-        macOS. fleiks provides a macOS steam package. The package must
-        contain a real Steam.app; it is copied to /Applications once and
-        then left to Steam's self-updater and NotProton's patcher.
+        macOS. fleiks provides a macOS steam package, pre-patched for
+        NotProton at build time. It is added to
+        environment.systemPackages, installed by nix-darwin's
+        applications mechanism (/Applications/Nix Apps), and NotProton
+        is pointed at it via its steamAppPath user default.
       '';
     };
 
@@ -138,27 +130,40 @@ in
           stable build; a CrossOver Preview package is fine if NotProton lists it.
         '';
 
+    environment.systemPackages = [
+      cfg.package
+      cfg.crossover.package
+      cfg.steam.package
+    ];
+
+    # CrossOver lands in /Applications/Nix Apps, outside the /Applications
+    # and ~/Applications roots NotProton scans, and Steam must be the
+    # pre-patched Nix Apps bundle, not NotProton's /Applications default;
+    # point it at both through its own user defaults.
+    system.defaults.CustomUserPreferences."com.notproton.NotProton" = {
+      manualCrossOverPaths = [ crossOverApp ];
+      steamAppPath = "/Applications/Nix Apps/Steam.app";
+    };
+
     # nix-darwin builds the activate script from a fixed list of
     # activationScripts names; an arbitrary name (e.g. "notproton") is
     # evaluated but never interpolated into it and never runs.
     # postActivation is in that list, and its `text` is a lines type, so
     # this composes with other modules' postActivation definitions
     # instead of overriding them.
-    environment.systemPackages = [
-      cfg.package
-      cfg.crossover.package
-    ];
-
-    # CrossOver lands in /Applications/Nix Apps, outside the /Applications
-    # and ~/Applications roots NotProton scans; register it through its
-    # manualCrossOverPaths user default instead.
-    system.defaults.CustomUserPreferences."com.notproton.NotProton" = {
-      manualCrossOverPaths = [ "/Applications/Nix Apps/CrossOver.app" ];
-    };
-
     system.activationScripts.postActivation.text = ''
       echo "notproton: setting up Steam, CrossOver and NotProton..."
-      ${installSteam cfg.steam.package}
+      # NotProton clones CrossOver before patching the clone, and the
+      # clone keeps the source's permissions. nix-darwin installs the
+      # source read-only, so hand it to the user writable; also repair
+      # any clone already made from the read-only copy.
+      if [ -d "${crossOverApp}" ]; then
+        chown -R ${user}:staff "${crossOverApp}"
+        chmod -R u+w "${crossOverApp}"
+      fi
+      if [ -d "${runnersDir}" ]; then
+        chmod -R u+w "${runnersDir}"
+      fi
     '';
   };
 }

@@ -83,13 +83,14 @@
             }
             ''
               grep -q "other-postactivation-marker" <<< "$activation"
-              grep -q "installing Steam.app to /Applications" <<< "$activation"
-              grep -q "lsregister -f" <<< "$activation"
+              grep -q "steamAppPath" <<< "$activation"
               grep -q "manualCrossOverPaths" <<< "$activation"
+              grep -q 'chmod -R u+w "/Applications/Nix Apps/CrossOver.app"' <<< "$activation"
               grep -q '"notproton-test"' <<< "$packages"
               grep -q '"crossover-test"' <<< "$packages"
-              if grep -q '"steam-test"' <<< "$packages"; then
-                echo "steam must stay a writable copy, not a systemPackage" >&2
+              grep -q '"steam-test"' <<< "$packages"
+              if grep -q "cp -R" <<< "$activation"; then
+                echo "activation must not copy apps; nix-darwin installs them" >&2
                 exit 1
               fi
               if grep -q "open.*NotProton.app" <<< "$activation"; then

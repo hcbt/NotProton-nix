@@ -48,12 +48,13 @@ Enabling the module without setting all three fails evaluation with an assertion
 
 ## How it works
 
-CrossOver and NotProton are immutable payloads, so the module adds their packages to `environment.systemPackages` and nix-darwin installs them its usual way (`/Applications/Nix Apps`, read-only). Two pieces of glue make that work with upstream NotProton:
+All three apps are added to `environment.systemPackages` and nix-darwin installs them its usual way (`/Applications/Nix Apps`, read-only). The module copies nothing itself. Three pieces of glue make that work with upstream NotProton:
 
-- **CrossOver.app** — NotProton only scans `/Applications` and `~/Applications`, so the module sets its `manualCrossOverPaths` user default to `/Applications/Nix Apps/CrossOver.app`.
-- **Steam.app** — the one exception. NotProton patches it in place (copies in `notproton.dylib`, edits `Info.plist`, ad-hoc re-signs) and Steam self-updates inside its bundle, so on activation the module copies a real, user-owned, writable `Steam.app` into `/Applications`, only if absent, and never overwrites it. It also re-registers the bundle with LaunchServices on every activation: an in-place bundle change otherwise leaves LaunchServices holding the old registration and launchd kills Steam with `Taskgated Invalid Signature`.
+- **CrossOver.app** — NotProton only scans `/Applications` and `~/Applications`, so the module sets its `manualCrossOverPaths` user default to `/Applications/Nix Apps/CrossOver.app`. NotProton clones CrossOver into `~/Library/Application Support/notproton/runners/` before patching the clone, and the clone keeps the source's permissions, so activation hands the Nix Apps copy to the user writable (it is only a clone source; nix-darwin re-syncs it every switch) and repairs any clone already made read-only.
+- **Steam.app** — NotProton normally patches Steam in place, which a read-only bundle refuses. The fleiks steam package is pre-patched at build time instead (dylib, `LSEnvironment` insert, ad-hoc signature), the module sets NotProton's `steamAppPath` default to the Nix Apps bundle, and NotProton recognises the pre-patched state and skips patching. Steam self-updates into `~/Library/Application Support/Steam`, never the bundle, so the rsync-managed copy stays pristine.
+- **NotProton.app** — needs no glue; it is launched from Nix Apps like any other app.
 
-NotProton is GUI-only — there is no CLI or headless install. Open NotProton yourself and click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, patches Steam, and registers the `notproton-26.3` compatibility tool. Activation only installs the apps; it never launches anything.
+NotProton is GUI-only — there is no CLI or headless install. Open NotProton yourself and click through its Status view: it clones CrossOver into `~/Library/Application Support/notproton/runners/`, verifies the pre-patched Steam, and registers the `notproton-26.3` compatibility tool. Activation only installs the apps; it never launches anything.
 
 Still manual, by upstream design:
 
