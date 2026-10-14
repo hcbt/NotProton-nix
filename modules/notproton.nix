@@ -164,6 +164,35 @@ in
       if [ -d "${runnersDir}" ]; then
         chmod -R u+w "${runnersDir}"
       fi
+      # The Nix Apps copy is Valve's Intel bootstrap. Launching that
+      # starts Steam under Rosetta, and the real client follows. Replace
+      # the executable with the arm64 slice of the downloaded client
+      # before NotProton patches it.
+      steamApp="/Applications/Nix Apps/Steam.app"
+      steamBin="$steamApp/Contents/MacOS/steam_osx"
+      inner="/Users/${user}/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
+      if [ ! -x "$inner" ] && [ -x "$steamBin" ]; then
+        echo "notproton: downloading the Steam client"
+        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -u ${user} -- "$steamBin" >/var/tmp/notproton-steam-bootstrap.log 2>&1 &
+        i=0
+        while [ ! -x "$inner" ] && [ "$i" -lt 180 ]; do
+          /bin/sleep 2
+          i=$((i + 1))
+        done
+        /usr/bin/pkill -f 'Steam.AppBundle/Steam/Contents/MacOS/steam_osx' || true
+      fi
+      if /usr/bin/lipo -info "$inner" 2>/dev/null | /usr/bin/grep -q arm64; then
+        echo "notproton: installing the arm64 Steam client"
+        chown -R ${user}:staff "$steamApp"
+        chmod -R u+w "$steamApp"
+        /usr/bin/lipo -thin arm64 "$inner" -output "$steamBin"
+        /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib" || true
+        /usr/bin/codesign -f -s - "$steamBin"
+        /usr/bin/codesign -f -s - "$steamApp"
+      else
+        echo "notproton: arm64 Steam client is not available at $inner" >&2
+        exit 1
+      fi
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
       # NotProton's files, clones and patches CrossOver, and sets it as
