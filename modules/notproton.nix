@@ -164,44 +164,48 @@ in
       if [ -d "${runnersDir}" ]; then
         chmod -R u+w "${runnersDir}"
       fi
-      # The Nix Apps copy is Valve's Intel bootstrap. Launching that
-      # starts Steam under Rosetta, and the real client follows. Replace
-      # the executable with the arm64 slice of the downloaded client
-      # before NotProton patches it.
+      # Valve's installer is an Intel bootstrap. Launching it starts
+      # Steam under Rosetta, and the first file it writes is another
+      # Intel copy, not the client. The arm64 executable is the
+      # macos-signed-2 package from the client manifest.
       steamApp="/Applications/Nix Apps/Steam.app"
       steamBin="$steamApp/Contents/MacOS/steam_osx"
       inner="/Users/${user}/Library/Application Support/Steam/Steam.AppBundle/Steam/Contents/MacOS/steam_osx"
-      # sudo without -H keeps HOME=/var/root, and Steam then tries to
-      # create /var/root/Library/Application Support/Steam.
-      runAsUser() {
-        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -H -u ${user} -- env HOME="/Users/${user}" USER="${user}" LOGNAME="${user}" "$@"
-      }
-      if [ ! -x "$inner" ] && [ -x "$steamBin" ]; then
-        echo "notproton: downloading the Steam client"
-        runAsUser "$steamBin" >/var/tmp/notproton-steam-bootstrap.log 2>&1 &
-        i=0
-        while [ ! -x "$inner" ] && [ "$i" -lt 180 ]; do
-          /bin/sleep 2
-          i=$((i + 1))
-        done
-        /usr/bin/pkill -f 'Steam.AppBundle/Steam/Contents/MacOS/steam_osx' || true
-      fi
-      if /usr/bin/lipo -info "$inner" 2>/dev/null | /usr/bin/grep -q arm64; then
-        echo "notproton: installing the arm64 Steam client"
-        chown -R ${user}:staff "$steamApp"
-        chmod -R u+w "$steamApp"
-        /usr/bin/lipo -thin arm64 "$inner" -output "$steamBin"
-        /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib" || true
-        /usr/bin/codesign -f -s - "$steamBin"
-        /usr/bin/codesign -f -s - "$steamApp"
-      else
-        echo "notproton: arm64 Steam client is not available at $inner" >&2
+      work=$(/usr/bin/mktemp -d)
+      echo "notproton: downloading the arm64 Steam client"
+      /usr/bin/curl -fsSL -o "$work/manifest" https://client-update.steamstatic.com/steam_client_osx
+      pkg=$(/usr/bin/awk '/macos-signed-2/ { grab=1 } grab && /"file"/ { gsub(/"/, "", $2); print $2; exit }' "$work/manifest")
+      if [ -z "$pkg" ]; then
+        echo "notproton: macos-signed-2 package not in the Steam manifest" >&2
         exit 1
       fi
+      /usr/bin/curl -fsSL -o "$work/steam_osx.zip" "https://client-update.steamstatic.com/$pkg"
+      /usr/bin/unzip -p "$work/steam_osx.zip" steam_osx > "$work/steam_osx"
+      /bin/rm -rf "$work/manifest" "$work/steam_osx.zip"
+      if ! /usr/bin/lipo -info "$work/steam_osx" | /usr/bin/grep -q arm64; then
+        echo "notproton: downloaded Steam client has no arm64 slice" >&2
+        exit 1
+      fi
+      echo "notproton: installing the arm64 Steam client"
+      chown -R ${user}:staff "$steamApp"
+      chmod -R u+w "$steamApp"
+      /usr/bin/lipo -thin arm64 "$work/steam_osx" -output "$steamBin"
+      /bin/mkdir -p "$(/usr/bin/dirname "$inner")"
+      /bin/cp "$steamBin" "$inner"
+      /usr/bin/chown ${user}:staff "$inner"
+      /usr/bin/codesign -f -s - "$steamApp/Contents/MacOS/notproton.dylib"
+      /usr/bin/codesign -f -s - "$steamBin"
+      /usr/bin/codesign -f -s - "$steamApp"
+      /usr/bin/codesign -f -s - "$inner"
+      /bin/rm -rf "$work"
       # Apps are already in /Applications/Nix Apps (that script runs
       # first) and the user defaults are already written. --setup deploys
       # NotProton's files, clones and patches CrossOver, and sets it as
       # Steam's default compatibility tool. Activation is not required.
+      # sudo without -H keeps HOME=/var/root.
+      runAsUser() {
+        /bin/launchctl asuser "$(id -u ${user})" /usr/bin/sudo -H -u ${user} -- env HOME="/Users/${user}" USER="${user}" LOGNAME="${user}" "$@"
+      }
       setupApp="/Applications/Nix Apps/NotProton.app/Contents/MacOS/NotProtonApp"
       if [ -x "$setupApp" ]; then
         echo "notproton: running setup for ${user}"
