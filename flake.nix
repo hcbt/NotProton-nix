@@ -92,6 +92,13 @@
               fi
               touch $out
             '';
+
+        # Builds the whole system like a consumer's darwin-rebuild does.
+        # nix-darwin shellchecks the assembled activate script while
+        # building the toplevel, so this catches ShellCheck failures
+        # (e.g. unassigned variables in activation snippets) that
+        # module-eval's greps cannot see.
+        toplevel = testConfig.system;
       };
 
       formatter.${system} = pkgs.nixfmt;

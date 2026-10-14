@@ -29,7 +29,7 @@ let
           if [ -d "$dstApp" ]; then
             echo "notproton: $dstApp already present, leaving it alone"
           else
-            echo "notproton: installing $app to /Applications"
+            echo "notproton: installing ${app} to /Applications"
             cp -R "$srcApp" "$dstApp"
             chown -R ${user}:staff "$dstApp"
             chmod -R u+w "$dstApp"
@@ -41,9 +41,9 @@ let
           srcVer=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$srcApp/Contents/Info.plist" 2>/dev/null || echo none)
           dstVer=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$dstApp/Contents/Info.plist" 2>/dev/null || echo none)
           if [ "$srcVer" = "$dstVer" ] && [ -d "$dstApp" ]; then
-            echo "notproton: $app $srcVer already installed"
+            echo "notproton: ${app} $srcVer already installed"
           else
-            echo "notproton: installing $app $srcVer to /Applications (was: $dstVer)"
+            echo "notproton: installing ${app} $srcVer to /Applications (was: $dstVer)"
             rm -rf "$dstApp"
             cp -R "$srcApp" "$dstApp"
             chown -R ${user}:staff "$dstApp"
